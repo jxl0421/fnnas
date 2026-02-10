@@ -133,11 +133,20 @@ jobs:
         if: ${{ steps.down.outputs.status == 'success' && !cancelled() }}
         run: |
           echo "Applying CumeBox2 device tree patches..."
-          if [ -f "custom/cumbox2/patch/cumbox2-dts.patch" ]; then
-            patch -p1 < custom/cumbox2/patch/cumbox2-dts.patch || echo "Warning: Patch application failed, continuing..."
-          else
-            echo "Warning: Patch file not found, skipping..."
+          
+          # 应用T95启动地址调整补丁
+          if [ -f "custom/cumbox2/patch/cumbox2-startup.patch" ]; then
+            echo "Applying startup address patch for T95 compatibility..."
+            patch -p1 < custom/cumbox2/patch/cumbox2-startup.patch || echo "Warning: Startup address patch failed, continuing..."
           fi
+          
+          # 应用其他设备树补丁
+          if [ -f "custom/cumbox2/patch/cumbox2-dts.patch" ]; then
+            echo "Applying device tree feature patches..."
+            patch -p1 < custom/cumbox2/patch/cumbox2-dts.patch || echo "Warning: Device tree patch failed, continuing..."
+          fi
+          
+          echo "All CumeBox2 patches applied"
 
       - name: Build CumeBox2 FnNAS
         if: ${{ steps.down.outputs.status == 'success' && !cancelled() }}
