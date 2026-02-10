@@ -35,10 +35,20 @@ echo "[完成] 脚本文件安装完成"
 echo ""
 
 # 4. 安装systemd服务
-echo "[步骤 4/7] 安装systemd服务..."
-cp /custom/cumbox2/systemd/*.service /lib/systemd/system/
-echo "[完成] systemd服务安装完成"
-echo ""
+    echo "[步骤 4/7] 安装systemd服务..."
+    cp /custom/cumbox2/systemd/*.service /lib/systemd/system/
+    echo "[完成] systemd服务安装完成"
+    echo ""
+
+# 5. 安装设备树补丁
+    echo "[步骤 5/7] 安装设备树补丁..."
+    if [ -d "/custom/cumbox2/patch" ]; then
+        cp /custom/cumbox2/patch/*.patch /usr/share/ophub/patches/ 2>/dev/null || true
+        echo "[完成] 设备树补丁安装完成"
+    else
+        echo "[警告] 设备树补丁目录不存在，跳过..."
+    fi
+    echo ""
 
 # 5. 添加执行权限
 echo "[步骤 5/7] 设置执行权限..."
