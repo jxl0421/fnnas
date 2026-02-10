@@ -18,9 +18,9 @@ on:
         default: true
         type: boolean
       rootfs_expand:
-        description: "Set rootfs expansion size(GiB)"
+        description: "Set rootfs expansion size(GiB) - For 8GB storage use 6-8GB"
         required: false
-        default: "16"
+        default: "8"
       builder_name:
         description: "Set builder signature"
         required: false
@@ -163,12 +163,19 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           body: |
             - CumeBox2 (S905X) 专属固件
-            - 功能特性：
+            - 硬件配置：1G内存 + 8GB存储优化
+            - 硬件功能：
               * OLED显示屏：显示IP地址、CPU温度、内存使用率、磁盘使用率和系统时间
               * 风扇自动控制：根据CPU温度自动调节风扇转速
               * 按键自定义：自定义电源键和复位键功能
               * LED指示灯：适配状态灯和磁盘活动灯
               * 无线网卡支持：内置WiFi模块自动启用
+            - 系统优化：
+              * Swap优化：自动创建2GB swap，缓解内存压力
+              * ZRAM内存压缩：启用512MB压缩内存
+              * 外挂设备自动挂载：USB/SATA/NVMe自动挂载到/mnt/storage
+              * SSD优化：自动检测SSD并优化I/O性能
+              * 系统性能优化：内核参数、日志管理优化
             - 内核版本: ${{ inputs.fnnas_kernel }}
             - 根分区扩容: ${{ inputs.rootfs_expand }}GiB
             - 构建者: ${{ inputs.builder_name }}

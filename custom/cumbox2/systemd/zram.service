@@ -1,0 +1,13 @@
+[Unit]
+Description=ZRAM Memory Compression
+After=multi-user.target
+Before=swap.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/zram-setup.sh
+ExecStop=/sbin/swapoff /dev/zram0
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

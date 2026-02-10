@@ -12,6 +12,36 @@
 3. 搜索 `files.eol`，设置为 `\n`
 4. 搜索 `files.encoding`，设置为 `utf8`
 
+## 系统配置说明
+
+### 硬件配置
+- **内存**：1GB
+- **存储**：8GB（可外挂存储设备）
+
+### 优化方案
+
+**分区配置**：
+- 根分区：8GB（默认，可扩展）
+- 剩余空间：用于数据和缓存
+
+**内存优化**：
+- **Swap**：2GB（内存的2倍）
+- **ZRAM**：512MB压缩内存
+- **内存压缩算法**：lzo-rle（性能优先）
+
+**存储优化**：
+- **外挂设备自动挂载**：
+  - USB设备 → /mnt/storage/usb
+  - SATA设备 → /mnt/storage/sata
+  - NVMe设备 → /mnt/storage/nvme
+- **SSD缓存**：自动检测SSD并优化I/O
+
+**系统优化**：
+- 内核参数优化（swappiness、脏页等）
+- I/O调度器优化
+- 日志轮转优化
+- 禁用不必要的服务
+
 ## 二、获取项目
 
 ### 2.1 Fork仓库
@@ -92,10 +122,10 @@ git push origin main
 ### 5.2 运行工作流
 1. 左侧选择 "Build CumeBox2 FnNAS Image"
 2. 点击右侧 "Run workflow" 按钮
-3. 选择编译参数：
+3. 选择编译参数（针对1G内存、8GB存储优化）：
    - **fnnas_kernel**: 选择 `6.12.y`（推荐）
    - **auto_kernel**: 保持 `true`
-   - **rootfs_expand**: 保持 `16`
+   - **rootfs_expand**: 设置为 `8`（推荐，适合8GB存储）
    - **builder_name**: 保持 `cumbox2`
 4. 点击 "Run workflow" 开始编译
 
@@ -133,7 +163,37 @@ git push origin main
 
 ## 八、验证功能
 
-### 8.1 OLED显示
+### 8.1 系统优化验证
+
+**检查内存状态**：
+```bash
+free -h
+```
+应该看到：
+- Total: 约1GB（物理内存）
+- Swap: 约2GB
+- ZRAM: 约512MB
+
+**检查挂载状态**：
+```bash
+df -h /mnt/storage
+ls -la /mnt/storage/
+```
+应该看到自动创建的挂载点：
+- /mnt/storage/usb
+- /mnt/storage/sata
+- /mnt/storage/nvme
+
+**检查系统优化**：
+```bash
+cat /proc/sys/vm/swappiness
+# 应该输出：10
+
+cat /sys/kernel/mm/transparent_hugepage/enabled
+# 应该输出：[never]
+```
+
+### 8.2 OLED显示
 - OLED屏幕应显示：
   - IP地址
   - CPU温度

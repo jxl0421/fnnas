@@ -24,13 +24,48 @@ custom/cumbox2/
 
 ## 功能说明
 
+### 硬件功能
 1. **OLED显示屏**：显示IP地址、CPU温度、内存使用率、磁盘使用率和系统时间
 2. **风扇自动控制**：根据CPU温度自动调节风扇转速
 3. **按键自定义**：自定义电源键和复位键功能
 4. **LED指示灯**：适配状态灯和磁盘活动灯
 5. **无线网卡支持**：内置WiFi模块自动启用
 
+### 系统优化（针对1G内存、8GB存储）
+1. **Swap优化**：自动创建2GB swap文件，缓解内存压力
+2. **ZRAM内存压缩**：启用512MB压缩内存，提升可用内存
+3. **外挂设备自动挂载**：自动识别并挂载USB、SATA、NVMe设备到/mnt/storage
+4. **系统性能优化**：优化内核参数、I/O调度、日志管理
+5. **SSD缓存支持**：检测SSD设备并优化I/O性能
+
 ## 使用方法
+
+### 优化配置说明
+
+**硬件配置**：1G内存 + 8GB存储
+
+**分区方案**：
+- 根分区：8GB（可扩展，默认8GB）
+- 系统预留：留出空间给数据和缓存
+
+**内存优化**：
+- Swap：2GB（内存的2倍）
+- ZRAM：512MB压缩内存
+- 内存压缩算法：lzo-rle（性能优先）
+
+**存储优化**：
+- 外挂设备自动挂载到：/mnt/storage
+  - USB设备 → /mnt/storage/usb
+  - SATA设备 → /mnt/storage/sata
+  - NVMe设备 → /mnt/storage/nvme
+- 自动检测SSD并优化I/O
+
+**自定义配置**：
+编辑 `config/optimization.conf` 可以调整：
+- Swap大小
+- ZRAM大小
+- 内存压缩算法
+- 系统参数
 
 ### 方法一：使用优化的CumeBox2工作流（推荐）
 
@@ -94,11 +129,20 @@ custom/cumbox2/
   - `false`: 使用指定版本
 
 - **rootfs_expand**: 根分区扩容大小（GiB）
-  - 默认：16 GiB
-  - 可根据需要调整
+  - **默认：8 GiB**（针对8GB存储优化）
+  - 建议值：6-8GB（留出空间给数据和缓存）
+  - 如果使用外挂存储，可以设置更小（如4-6GB）
 
 - **builder_name**: 构建者签名
   - 默认：cumbox2
+
+### 推荐配置（针对1G内存、8GB存储）
+```
+fnnas_kernel: 6.12.y
+auto_kernel: true
+rootfs_expand: 8
+builder_name: cumbox2
+```
 
 ## 注意事项
 
