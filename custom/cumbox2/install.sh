@@ -14,10 +14,7 @@ echo ""
 echo "[步骤 1/7] 创建必要目录..."
 mkdir -p /usr/local/cumbox2/scripts
 mkdir -p /etc/cumbox2
-mkdir -p /mnt/storage
-mkdir -p /mnt/storage/usb
-mkdir -p /mnt/storage/sata
-mkdir -p /mnt/storage/nvme
+mkdir -p /media
 mkdir -p /var/log/cumbox2
 echo "[完成] 目录创建完成"
 echo ""
@@ -83,28 +80,35 @@ echo ""
 echo "[步骤 7/7] 启用CumeBox2硬件服务..."
 systemctl daemon-reload
 
-# OLED显示服务
+# 复制检查脚本
+if [ -f /custom/cumbox2/scripts/check_services.sh ]; then
+    cp /custom/cumbox2/scripts/check_services.sh /usr/local/cumbox2/scripts/
+    chmod +x /usr/local/cumbox2/scripts/check_services.sh
+    echo "  ✓ 服务检查脚本已安装"
+fi
+
+# 启用OLED显示服务
 if [ -f /lib/systemd/system/cumbox2-oled.service ]; then
     systemctl enable cumbox2-oled.service
-    echo "  - OLED显示服务已启用"
+    echo "  ✓ OLED显示服务已启用"
 fi
 
-# 风扇控制服务
+# 启用风扇控制服务
 if [ -f /lib/systemd/system/cumbox2-fan.service ]; then
     systemctl enable cumbox2-fan.service
-    echo "  - 风扇控制服务已启用"
+    echo "  ✓ 风扇控制服务已启用"
 fi
 
-# 按键服务
+# 启用按键服务
 if [ -f /lib/systemd/system/cumbox2-key.service ]; then
     systemctl enable cumbox2-key.service
-    echo "  - 按键服务已启用"
+    echo "  ✓ 按键服务已启用"
 fi
 
-# ZRAM服务
+# 启用ZRAM服务
 if [ -f /etc/systemd/system/zram.service ]; then
     systemctl enable zram.service
-    echo "  - ZRAM内存压缩服务已启用"
+    echo "  ✓ ZRAM内存压缩服务已启用"
 fi
 
 echo "[完成] 硬件服务启用完成"
@@ -117,7 +121,48 @@ apt-get install -y i2c-tools evtest udisks2 udiskie zram-tools
 echo "[完成] 依赖包安装完成"
 echo ""
 
-# 9. 显示系统信息
+# 9. 启动服务并检查状态
+echo "[检查] 启动硬件服务..."
+
+# 启动OLED服务
+if systemctl is-enabled cumbox2-oled.service 2>/dev/null; then
+    echo "  启动OLED服务..."
+    systemctl start cumbox2-oled.service
+    sleep 3
+    if systemctl is-active cumbox2-oled.service >/dev/null 2>&1; then
+        echo "  ✓ OLED服务运行正常"
+    else
+        echo "  ✗ OLED服务启动失败，将在后台自动重试"
+    fi
+fi
+
+# 启动风扇服务
+if systemctl is-enabled cumbox2-fan.service 2>/dev/null; then
+    echo "  启动风扇服务..."
+    systemctl start cumbox2-fan.service
+    sleep 2
+    if systemctl is-active cumbox2-fan.service >/dev/null 2>&1; then
+        echo "  ✓ 风扇服务运行正常"
+    else
+        echo "  ✗ 风扇服务启动失败，将在后台自动重试"
+    fi
+fi
+
+# 启动按键服务
+if systemctl is-enabled cumbox2-key.service 2>/dev/null; then
+    echo "  启动按键服务..."
+    systemctl start cumbox2-key.service
+    sleep 2
+    if systemctl is-active cumbox2-key.service >/dev/null 2>&1; then
+        echo "  ✓ 按键服务运行正常"
+    else
+        echo "  ✗ 按键服务启动失败，将在后台自动重试"
+    fi
+fi
+
+echo ""
+
+# 10. 显示系统信息
 echo "======================================"
 echo "  CumeBox2 安装完成！"
 echo "======================================"
@@ -128,24 +173,52 @@ echo ""
 echo "存储使用："
 df -h / | tail -1
 echo ""
-echo "挂载点："
-df -h | grep /mnt/storage || echo "  无外挂设备"
+echo "服务状态："
+systemctl is-active cumbox2-oled.service 2>/dev/null && echo "  ✓ OLED显示服务" || echo "  ○ OLED显示服务（重试中）"
+systemctl is-active cumbox2-fan.service 2>/dev/null && echo "  ✓ 风扇控制服务" || echo "  ○ 风扇控制服务（重试中）"
+systemctl is-active cumbox2-key.service 2>/dev/null && echo "  ✓ 按键服务" || echo "  ○ 按键服务（重试中）"
+systemctl is-active zram.service 2>/dev/null && echo "  ✓ ZRAM内存压缩" || echo "  ○ ZRAM内存压缩"
 echo ""
 echo "优化特性："
 echo "  ✓ Swap优化（2GB）"
 echo "  ✓ ZRAM内存压缩（512MB）"
-echo "  ✓ 外挂设备自动挂载"
+echo "  ✓ 外挂设备自动挂载（/media/，标准udisks2）"
 echo "  ✓ 系统性能优化"
 echo "  ✓ OLED显示"
 echo "  ✓ 风扇自动控制"
 echo "  ✓ 按键自定义"
 echo ""
 echo "======================================"
-echo "  系统将在5秒后重启以应用所有配置"
+echo "  安装完成，系统将自动重启服务"
 echo "======================================"
+echo ""
 
-# 创建重启提示
-echo "系统安装完成，将在重启后完全生效" > /etc/motd.d/cumbox2
+# 创建启动信息
+cat > /etc/motd.d/cumbox2 << 'EOM'
+=================================================================
+  CumeBox2 硬件适配已安装
+=================================================================
 
-# 自动重启（可选，如果不想自动重启可注释掉）
-# reboot
+系统优化：
+  • Swap: 2GB
+  • ZRAM: 512MB压缩内存
+  • 外挂设备: 自动挂载到/media/
+
+硬件服务：
+  • OLED: 自动显示系统信息
+  • 风扇: 根据温度自动调节
+  • 按键: 自定义功能
+
+查看日志：journalctl -u cumbox2-* -f
+=================================================================
+EOM
+
+echo "安装完成！硬件服务将在后台自动启动和重试。"
+echo ""
+echo "常用命令："
+echo "  检查服务状态: /usr/local/cumbox2/scripts/check_services.sh"
+echo "  查看服务状态: systemctl status cumbox2-oled cumbox2-fan cumbox2-key"
+echo "  查看服务日志: journalctl -u cumbox2-* -f"
+echo ""
+echo "服务会在启动失败后自动重试（每10秒一次），"
+echo "无需手动干预，等待1-2分钟即可正常运行。"

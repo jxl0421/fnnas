@@ -1,0 +1,20 @@
+[Unit]
+Description=CumeBox2 OLED System Info Display
+After=network-online.target multi-user.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/local/cumbox2/scripts/oled_system_info.sh
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=cumbox2-oled
+
+# 环境变量
+Environment="LC_ALL=C"
+
+[Install]
+WantedBy=multi-user.target

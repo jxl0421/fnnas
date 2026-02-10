@@ -163,7 +163,24 @@ git push origin main
 
 ## 八、验证功能
 
-### 8.1 系统优化验证
+### 8.1 服务状态检查
+安装完成后，可以使用服务检查脚本查看所有硬件服务的状态：
+
+```bash
+/usr/local/cumbox2/scripts/check_services.sh
+```
+
+该脚本会检查：
+1. OLED显示服务状态和日志
+2. 风扇控制服务状态和日志
+3. 按键服务状态和日志
+4. ZRAM内存压缩状态
+5. 内存和Swap状态
+6. 外挂设备挂载状态
+7. I2C设备检测
+8. GPIO导出状态
+
+### 8.2 系统优化验证
 
 **检查内存状态**：
 ```bash
@@ -201,7 +218,30 @@ cat /sys/kernel/mm/transparent_hugepage/enabled
   - 磁盘使用率
   - 系统时间
 
-### 8.2 风扇控制
+### 8.2 服务状态检查
+开机后，硬件服务会自动启动并持续运行。如果首次启动失败，服务会自动重试。
+
+**查看服务状态**：
+```bash
+systemctl status cumbox2-oled
+systemctl status cumbox2-fan
+systemctl status cumbox2-key
+```
+
+**查看服务日志**：
+```bash
+journalctl -u cumbox2-oled -f
+journalctl -u cumbox2-fan -f
+journalctl -u cumbox2-key -f
+```
+
+**服务重启机制**：
+- OLED服务：启动失败后10秒自动重试
+- 风扇服务：启动失败后10秒自动重试
+- 按键服务：启动失败后10秒自动重试
+- 所有服务都设置为始终重启（Restart=always）
+
+### 8.3 风扇控制
 - CPU温度低于50℃时，风扇停止
 - CPU温度高于50℃时，风扇启动
 
@@ -215,7 +255,34 @@ cat /sys/kernel/mm/transparent_hugepage/enabled
 
 ## 九、常见问题
 
-### Q1: 编译失败怎么办？
+### Q1: 开机后OLED不显示？
+A:
+1. 检查服务状态：`systemctl status cumbox2-oled`
+2. 查看服务日志：`journalctl -u cumbox2-oled -n 50`
+3. 确认I2C总线配置是否正确：`i2cdetect -y 0`
+4. 服务会自动重试，等待1-2分钟看是否恢复
+
+### Q2: 风扇不转动？
+A:
+1. 检查GPIO配置是否正确
+2. 查看服务日志：`journalctl -u cumbox2-fan -n 50`
+3. 检查CPU温度是否超过50℃：`cat /sys/class/thermal/thermal_zone0/temp`
+4. 服务会自动重试，等待1-2分钟看是否恢复
+
+### Q3: 服务启动失败？
+A:
+- 系统会自动重试服务（每10秒一次）
+- 查看服务日志了解具体错误：`journalctl -u cumbox2-* -n 100`
+- 如果持续失败，检查硬件配置文件是否正确
+
+### Q4: 外挂设备不自动挂载？
+A:
+1. 系统使用标准udisks2挂载（兼容原项目）
+2. 手动挂载：`udiskie --tray --automount --notify`（需要图形界面）
+3. 或使用命令行：`udisksctl mount -b /dev/sdX1`
+4. 挂载位置：/media/（根据设备标签或UUID自动创建）
+
+### Q5: 编译失败怎么办？
 A: 查看Actions日志，定位错误信息，常见原因：
 - 网络连接问题
 - 文件格式错误（确保使用LF换行符）

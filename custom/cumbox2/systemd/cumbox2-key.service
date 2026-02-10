@@ -1,0 +1,19 @@
+[Unit]
+Description=CumeBox2 Custom Key Mapping
+After=multi-user.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/local/cumbox2/scripts/key_custom.sh
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=cumbox2-key
+
+# 环境变量
+Environment="LC_ALL=C"
+
+[Install]
+WantedBy=multi-user.target
