@@ -16,5 +16,8 @@
             "command": "extension.execute",
             "priority": 4
         }
+    ],
+    "github-actions.workflows.pinned.workflows": [
+        ".github/workflows/build-cumbox2-fnnas.yml"
     ]
 }

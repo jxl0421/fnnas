@@ -4,7 +4,7 @@
  	model = "CumeBox2";
  	compatible = "amlogic,s905x-cumebox", "amlogic,s905x", "amlogic,meson-gxl";
  
-+	// T95版本启动地址调整
++	// T95版本启动地址调整 (0x10800000)
 +	chosen {
 +		bootargs = "console=ttyS0,115200n8 earlyprintk root=/dev/mmcblk0p1 rootwait ro rootfstype=ext4";
 +		bootargs-append = " console=tty0";
@@ -17,8 +17,8 @@
  	memory@0 {
  		device_type = "memory";
  		reg = <0x0 0x40000000>; // 1GB memory
--		/* T95版本启动地址调整为0x10000000 */
-+		/* T95版本启动地址调整为0x10000000，匹配CumeBox2内存配置 */
+-		/* T95版本启动地址调整为0x10800000 */
++		/* T95版本启动地址调整为0x10800000，匹配CumeBox2内存配置 */
  	};
  
  	reserved-memory {
@@ -35,7 +35,7 @@
  		pinctrl-names = "default";
  	};
  
-+	// T95版本启动地址调整
++	// T95版本启动地址调整 (0x10800000)
 +	mmc_pwrseq: mmc-pwrseq {
 +		compatible = "mmc-pwrseq-simple";
 +		pinctrl-0 = <&sdio32b_pwren>;
@@ -60,7 +60,7 @@
  		};
  	};
  
-+	// T95版本启动地址调整
++	// T95版本启动地址调整 (0x10800000)
  	ethernet@ff006000 {
  		compatible = "amlogic,meson-gxl-dwmac";
  		reg = <0x0 0xff006000 0x0 0x2000>;
