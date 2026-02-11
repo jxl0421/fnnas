@@ -1,90 +1,55 @@
 --- a/arch/arm64/boot/dts/amlogic/meson-gxl-s905x-cumebox.dts
 +++ b/arch/arm64/boot/dts/amlogic/meson-gxl-s905x-cumebox.dts
-@@ -20,6 +20,12 @@
+@@ -20,6 +20,13 @@
  	model = "CumeBox2";
  	compatible = "amlogic,s905x-cumebox", "amlogic,s905x", "amlogic,meson-gxl";
  
-+	// T95版本启动地址调整 (0x10800000)
 +	chosen {
-+		bootargs = "console=ttyS0,115200n8 earlyprintk root=/dev/mmcblk0p1 rootwait ro rootfstype=ext4";
-+		bootargs-append = " console=tty0";
++		bootargs = "earlyprintk console=ttyS0,115200n8 root=/dev/mmcblk0p1 rootwait ro rootfstype=ext4 console=tty0";
 +	};
 +
  	aliases {
  		serial0 = &uart_AO;
  	};
-@@ -50,7 +56,7 @@
- 	memory@0 {
- 		device_type = "memory";
- 		reg = <0x0 0x40000000>; // 1GB memory
--		/* T95版本启动地址调整为0x10800000 */
-+		/* T95版本启动地址调整为0x10800000，匹配CumeBox2内存配置 */
- 	};
- 
- 	reserved-memory {
-@@ -100,7 +106,7 @@
+@@ -100,7 +107,24 @@
  		status = "okay";
  	};
  
--	// 新增OLED节点
-+	// 新增OLED节点 - T95兼容配置
- 	i2c@500 {
- 		status = "okay";
- 		oled@3c {
-@@ -110,6 +116,15 @@
- 		pinctrl-names = "default";
- 	};
- 
-+	// T95版本启动地址调整 (0x10800000)
-+	mmc_pwrseq: mmc-pwrseq {
-+		compatible = "mmc-pwrseq-simple";
-+		pinctrl-0 = <&sdio32b_pwren>;
-+		pinctrl-names = "default";
-+		reset-gpios = <&gpio GPIOZ_6 GPIO_ACTIVE_LOW>;
++	// OLED显示配置 - I2C@500总线
++	i2c@500 {
++		status = "okay";
++		oled@3c {
++			compatible = "ssd1306fb,i2c";
++			reg = <0x3c>;
++			status = "okay";
++		};
 +	};
 +
-+	// 新增风扇节点
- 	gpio-fan {
- 		#cooling-cells = <0x02>;
- 		compatible = "gpio-fan";
-@@ -119,7 +134,7 @@
- 		status = "okay";
- 	};
- 
--	// 新增LED节点
-+	// 新增LED节点 - T95兼容配置
++	// 风扇控制
++	gpio-fan {
++		#cooling-cells = <0x02>;
++		compatible = "gpio-fan";
++		gpio = <&gpio AO_3 GPIO_ACTIVE_HIGH>;
++		cooling-levels = <0 255>;
++		status = "okay";
++	};
++
++	// LED指示灯
  	leds {
  		compatible = "gpio-leds";
  
-@@ -138,6 +153,7 @@
+@@ -108,7 +132,7 @@
+ 			label = "cumbox2:status";
+ 			gpios = <&gpio X_49 GPIO_ACTIVE_HIGH>;
+ 			default-state = "on";
+-			linux,default-trigger = "timer";
++			linux,default-trigger = "heartbeat";
+ 		};
+ 
+ 		disk {
+@@ -116,7 +140,7 @@
+ 			gpios = <&gpio X_4B GPIO_ACTIVE_HIGH>;
+ 			default-state = "off";
+ 			linux,default-trigger = "disk-activity";
  		};
  	};
- 
-+	// T95版本启动地址调整 (0x10800000)
- 	ethernet@ff006000 {
- 		compatible = "amlogic,meson-gxl-dwmac";
- 		reg = <0x0 0xff006000 0x0 0x2000>;
-@@ -145,6 +161,7 @@
- 		phy-mode = "rmii";
- 		phy-handle = <&internal_phy>;
- 		amlogic,phy-reset-gpios = <&gpio GPIOZ_14 GPIO_ACTIVE_LOW>;
-+		/* T95版本启动地址调整为标准配置 */
- 	};
- 
- 	usb@ff540000 {
-@@ -153,6 +170,7 @@
- 		reg = <0x0 0xff540000 0x0 0x20000>;
- 		interrupts = <GIC_SPI 2 IRQ_TYPE_EDGE_RISING>;
- 		amlogic,phy-reg = <0x0 0xff542200>;
-+		/* T95版本启动地址调整为标准配置 */
- 	};
- 
- 	usb@ff9c0000 {
-@@ -160,6 +178,7 @@
- 		reg = <0x0 0xff9c0000 0x0 0x40000>;
- 		interrupts = <GIC_SPI 21 IRQ_TYPE_EDGE_RISING>;
- 		amlogic,phy-reg = <0x0 0xff9c0200>;
-+		/* T95版本启动地址调整为标准配置 */
- 	};
- 
- 	usb@ff9e0000 {

@@ -44,24 +44,27 @@ custom/cumbox2/
 
 针对T95版本的启动地址进行了以下优化：
 
-- **启动参数调整**：优化启动参数为 `console=ttyS0,115200n8 earlyprintk root=/dev/mmcblk0p1 rootwait ro rootfstype=ext4`
+- **启动参数调整**：优化启动参数为 `earlyprintk console=ttyS0,115200n8 root=/dev/mmcblk0p1 rootwait ro rootfstype=ext4 console=tty0`
 - **启动地址设置**：启动地址调整为 `0x10800000`（T95标准启动地址）
 - **内存配置**：1GB内存配置优化
 - **设备树兼容**：与T95启动地址保持一致，确保启动兼容性
-- **启动可靠性**：增加启动错误处理和重试机制
+- **设备树补丁**：完整的硬件节点配置（OLED、风扇、LED、按键等）
+- **启动可靠性**：固件直接包含完整配置，无需启动修复脚本
 
 ## 注意事项
 
 1. **启动兼容性**：T95启动地址优化（0x10800000）确保与T95固件的启动兼容性
-2. **设备树补丁**：启动地址调整通过设备树补丁实现
+2. **设备树补丁**：启动地址调整通过设备树补丁实现，包含完整硬件配置
 3. **固件编译**：编译时自动应用T95启动地址补丁
 4. **启动测试**：建议在刷写固件后测试启动功能
+5. **无启动修复脚本**：固件已包含完整配置，无需运行启动修复脚本
 
 如遇到启动问题，请检查：
 - 设备树补丁是否正确应用
 - 启动参数是否匹配
 - 内存配置是否正确
 - 启动地址设置是否生效（0x10800000）
+- 硬件服务状态：`systemctl status cumbox2-oled cumbox2-fan cumbox2-key`
 
 ## 使用方法
 
@@ -189,9 +192,13 @@ builder_name: cumbox2
 - **编译失败**：检查Actions日志，查看具体错误信息
 - **补丁应用失败**：检查设备树补丁文件格式是否正确
 - **硬件不工作**：检查hardware.conf中的GPIO配置是否正确
+- **服务启动失败**：检查服务状态：`systemctl status cumbox2-oled cumbox2-fan cumbox2-key`
+- **查看服务日志**：`journalctl -u cumbox2-* -f`
 
 ## 支持
 
 如有问题，请查看：
 - [FnNAS官方文档](https://github.com/ophub/fnnas)
 - [amlogic-s9xxx-armbian项目](https://github.com/ophub/amlogic-s9xxx-armbian)
+- 查看内核日志：`dmesg | grep -i "i2c\|gpio\|oled\|fan"`
+- 查看服务日志：`journalctl -u cumbox2-* -n 100`

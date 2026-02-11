@@ -11,7 +11,7 @@ echo "======================================"
 echo ""
 
 # 1. 创建目录
-echo "[步骤 1/7] 创建必要目录..."
+echo "[步骤 1/8] 创建必要目录..."
 mkdir -p /usr/local/cumbox2/scripts
 mkdir -p /etc/cumbox2
 mkdir -p /media
@@ -20,65 +20,75 @@ echo "[完成] 目录创建完成"
 echo ""
 
 # 2. 复制配置文件
-echo "[步骤 2/7] 安装配置文件..."
-cp /custom/cumbox2/config/hardware.conf /etc/cumbox2/
-if [ -f /custom/cumbox2/config/optimization.conf ]; then
-    cp /custom/cumbox2/config/optimization.conf /etc/cumbox2/
-fi
-echo "[完成] 配置文件安装完成"
-echo ""
+    echo "[步骤 2/8] 安装配置文件..."
+    cp /usr/share/ophub/custom/cumbox2/config/hardware.conf /etc/cumbox2/
+    if [ -f /usr/share/ophub/custom/cumbox2/config/optimization.conf ]; then
+        cp /usr/share/ophub/custom/cumbox2/config/optimization.conf /etc/cumbox2/
+    fi
+
+    # 安装启动配置文件
+    if [ -f /usr/share/ophub/custom/cumbox2/config/uEnv.txt ]; then
+        echo "  [2.1] 安装启动配置文件..."
+        cp /usr/share/ophub/custom/cumbox2/config/uEnv.txt /boot/uEnv.txt
+        chmod 644 /boot/uEnv.txt
+        echo "[完成] 启动配置文件安装完成"
+    else
+        echo "[警告] 启动配置文件不存在，跳过..."
+    fi
+    echo "[完成] 配置文件安装完成"
+    echo ""
 
 # 3. 复制脚本文件
-echo "[步骤 3/7] 安装脚本文件..."
-cp /custom/cumbox2/scripts/*.sh /usr/local/cumbox2/scripts/
-echo "[完成] 脚本文件安装完成"
-echo ""
+    echo "[步骤 3/8] 安装脚本文件..."
+    cp /usr/share/ophub/custom/cumbox2/scripts/*.sh /usr/local/cumbox2/scripts/
+    echo "[完成] 脚本文件安装完成"
+    echo ""
 
 # 4. 安装systemd服务
-    echo "[步骤 4/7] 安装systemd服务..."
-    cp /custom/cumbox2/systemd/*.service /lib/systemd/system/
+    echo "[步骤 4/8] 安装systemd服务..."
+    cp /usr/share/ophub/custom/cumbox2/systemd/*.service /lib/systemd/system/
     echo "[完成] systemd服务安装完成"
     echo ""
 
 # 5. 安装设备树补丁
-    echo "[步骤 5/7] 安装设备树补丁..."
-    if [ -d "/custom/cumbox2/patch" ]; then
-        cp /custom/cumbox2/patch/*.patch /usr/share/ophub/patches/ 2>/dev/null || true
+    echo "[步骤 5/8] 安装设备树补丁..."
+    if [ -d "/usr/share/ophub/custom/cumbox2/patch" ]; then
+        cp /usr/share/ophub/custom/cumbox2/patch/*.patch /usr/share/ophub/patches/ 2>/dev/null || true
         echo "[完成] 设备树补丁安装完成"
     else
         echo "[警告] 设备树补丁目录不存在，跳过..."
     fi
     echo ""
 
-# 5. 添加执行权限
-echo "[步骤 5/7] 设置执行权限..."
+# 6. 添加执行权限
+echo "[步骤 6/8] 设置执行权限..."
 chmod +x /usr/local/cumbox2/scripts/*.sh
 echo "[完成] 执行权限设置完成"
 echo ""
 
-# 6. 优化系统配置
-echo "[步骤 6/7] 优化系统配置..."
+# 7. 优化系统配置
+echo "[步骤 7/8] 优化系统配置..."
 
-# 6.1 配置Swap（针对1G内存）
-echo "  [6.1] 配置Swap优化..."
+# 7.1 配置Swap（针对1G内存）
+echo "  [7.1] 配置Swap优化..."
 if [ -f /usr/local/cumbox2/scripts/setup_swap.sh ]; then
     /usr/local/cumbox2/scripts/setup_swap.sh
 fi
 
-# 6.2 配置ZRAM内存压缩
-echo "  [6.2] 配置ZRAM内存压缩..."
+# 7.2 配置ZRAM内存压缩
+echo "  [7.2] 配置ZRAM内存压缩..."
 if [ -f /usr/local/cumbox2/scripts/setup_zram.sh ]; then
     /usr/local/cumbox2/scripts/setup_zram.sh
 fi
 
-# 6.3 配置自动挂载
-echo "  [6.3] 配置外挂设备自动挂载..."
+# 7.3 配置自动挂载
+echo "  [7.3] 配置外挂设备自动挂载..."
 if [ -f /usr/local/cumbox2/scripts/setup_automount.sh ]; then
     /usr/local/cumbox2/scripts/setup_automount.sh
 fi
 
-# 6.4 系统性能优化
-echo "  [6.4] 执行系统性能优化..."
+# 7.4 系统性能优化
+echo "  [7.4] 执行系统性能优化..."
 if [ -f /usr/local/cumbox2/scripts/optimize_system.sh ]; then
     /usr/local/cumbox2/scripts/optimize_system.sh
 fi
@@ -86,13 +96,13 @@ fi
 echo "[完成] 系统优化完成"
 echo ""
 
-# 7. 启用硬件相关服务
-echo "[步骤 7/7] 启用CumeBox2硬件服务..."
+# 8. 启用硬件相关服务
+echo "[步骤 8/8] 启用CumeBox2硬件服务..."
 systemctl daemon-reload
 
 # 复制检查脚本
-if [ -f /custom/cumbox2/scripts/check_services.sh ]; then
-    cp /custom/cumbox2/scripts/check_services.sh /usr/local/cumbox2/scripts/
+if [ -f /usr/share/ophub/custom/cumbox2/scripts/check_services.sh ]; then
+    cp /usr/share/ophub/custom/cumbox2/scripts/check_services.sh /usr/local/cumbox2/scripts/
     chmod +x /usr/local/cumbox2/scripts/check_services.sh
     echo "  ✓ 服务检查脚本已安装"
 fi
@@ -124,14 +134,14 @@ fi
 echo "[完成] 硬件服务启用完成"
 echo ""
 
-# 8. 安装依赖包
+# 9. 安装依赖包
 echo "[安装] 安装系统依赖..."
 apt-get update -qq
 apt-get install -y i2c-tools evtest udisks2 udiskie zram-tools
 echo "[完成] 依赖包安装完成"
 echo ""
 
-# 9. 启动服务并检查状态
+# 10. 启动服务并检查状态
 echo "[检查] 启动硬件服务..."
 
 # 启动OLED服务

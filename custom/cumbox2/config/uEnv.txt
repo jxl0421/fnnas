@@ -1,0 +1,46 @@
+# CumeBox2启动配置文件
+# T95标准启动地址和完整配置
+
+# 启动参数 - T95标准配置
+bootargs=earlyprintk console=ttyS0,115200n8 root=/dev/mmcblk0p1 rootwait ro rootfstype=ext4 console=tty0
+
+# 启动设备配置
+boot_targets=mmc0
+
+# 启动镜像
+boot_image=uImage
+boot_initrd=uInitrd
+
+# 启动地址 - T95标准启动地址
+kernel_addr=0x10800000
+ramdisk_addr=0x11000000
+
+# 设备树
+fdt_addr=0x10000000
+fdt_file=meson-gxl-s905x-cumebox.dtb
+
+# 修复启动romsd定义
+bootromsd=mmc0
+
+# 串口配置
+console=ttyS0,115200n8
+
+# 启动超时
+bootdelay=3
+
+# 启动命令
+bootcmd=run bootargs; run boot_targets; run load_kernel; run load_fdt; run load_ramdisk; booti ${kernel_addr} ${ramdisk_addr}:${filesize} ${fdt_addr}
+
+# 加载内核
+load_kernel=load mmc 0 ${kernel_addr} ${boot_image}
+load_fdt=load mmc 0 ${fdt_addr} ${fdt_file}
+load_ramdisk=load mmc 0 ${ramdisk_addr} ${boot_initrd}
+
+# 修复同步中止问题
+synchronous_abort=0
+
+# 内存配置
+meminfo=1024M
+
+# 设备配置
+mmc_boot=mmc dev 0; run bootcmd
