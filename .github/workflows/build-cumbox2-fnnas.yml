@@ -216,25 +216,9 @@ jobs:
           # 创建首次启动标记（用于install.sh自动运行）
           echo "Creating first boot marker..."
           sudo touch /mnt/cumbox2/etc/cumbox2_first_boot
-          
-          # 创建自动启动服务（首次启动运行install.sh）
-          sudo tee /mnt/cumbox2/etc/systemd/system/cumbox2-first-boot.service > /dev/null << 'EOF'
-[Unit]
-Description=CumeBox2 First Boot Setup
-After=local-fs.target
-Before=network.target
-ConditionPathExists=/etc/cumbox2_first_boot
 
-[Service]
-Type=oneshot
-ExecStart=/usr/share/ophub/custom/cumbox2/install.sh
-ExecStartPost=/bin/rm -f /etc/cumbox2_first_boot
-RemainAfterExit=yes
-
-[Install]
-WantedBy=multi-user.target
-EOF
-          
+          # 注意：cumbox2-first-boot.service 已通过 systemd/*.service 复制到镜像
+          # 启用首次启动服务
           sudo ln -sf /etc/systemd/system/cumbox2-first-boot.service /mnt/cumbox2/etc/systemd/system/multi-user.target.wants/cumbox2-first-boot.service
           
           # 显示安装的文件

@@ -1,0 +1,14 @@
+[Unit]
+Description=CumeBox2 First Boot Setup
+After=local-fs.target
+Before=network.target
+ConditionPathExists=/etc/cumbox2_first_boot
+
+[Service]
+Type=oneshot
+ExecStart=/usr/share/ophub/custom/cumbox2/install.sh
+ExecStartPost=/bin/rm -f /etc/cumbox2_first_boot
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
