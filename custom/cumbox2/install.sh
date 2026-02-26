@@ -44,60 +44,66 @@ echo ""
     echo "[完成] 脚本文件安装完成"
     echo ""
 
-# 4. 安装systemd服务
-    echo "[步骤 4/8] 安装systemd服务..."
-    cp /usr/share/ophub/custom/cumbox2/systemd/*.service /lib/systemd/system/
-    echo "[完成] systemd服务安装完成"
-    echo ""
-
-# 5. 安装设备树补丁
-    echo "[步骤 5/8] 安装设备树补丁..."
-    if [ -d "/usr/share/ophub/custom/cumbox2/patch" ]; then
-        cp /usr/share/ophub/custom/cumbox2/patch/*.patch /usr/share/ophub/patches/ 2>/dev/null || true
-        echo "[完成] 设备树补丁安装完成"
-    else
-        echo "[警告] 设备树补丁目录不存在，跳过..."
-    fi
-    echo ""
-
-# 6. 添加执行权限
-echo "[步骤 6/8] 设置执行权限..."
+# 4. 添加执行权限
+echo "[步骤 4/8] 设置执行权限..."
 chmod +x /usr/local/cumbox2/scripts/*.sh
 echo "[完成] 执行权限设置完成"
 echo ""
 
-# 7. 优化系统配置
-echo "[步骤 7/8] 优化系统配置..."
+# 5. 优化系统配置
+echo "[步骤 5/8] 优化系统配置..."
 
-# 7.1 配置Swap（针对1G内存）
-echo "  [7.1] 配置Swap优化..."
+# 5.1 配置Swap（针对1G内存）
+echo "  [5.1] 配置Swap优化..."
 if [ -f /usr/local/cumbox2/scripts/setup_swap.sh ]; then
     /usr/local/cumbox2/scripts/setup_swap.sh
 fi
 
-# 7.2 配置ZRAM内存压缩
-echo "  [7.2] 配置ZRAM内存压缩..."
+# 5.2 配置ZRAM内存压缩
+echo "  [5.2] 配置ZRAM内存压缩..."
 if [ -f /usr/local/cumbox2/scripts/setup_zram.sh ]; then
     /usr/local/cumbox2/scripts/setup_zram.sh
 fi
 
-# 7.3 配置自动挂载
-echo "  [7.3] 配置外挂设备自动挂载..."
+# 5.3 配置自动挂载
+echo "  [5.3] 配置外挂设备自动挂载..."
 if [ -f /usr/local/cumbox2/scripts/setup_automount.sh ]; then
     /usr/local/cumbox2/scripts/setup_automount.sh
 fi
 
-# 7.4 系统性能优化
-echo "  [7.4] 执行系统性能优化..."
+# 5.4 系统性能优化
+echo "  [5.4] 执行系统性能优化..."
 if [ -f /usr/local/cumbox2/scripts/optimize_system.sh ]; then
     /usr/local/cumbox2/scripts/optimize_system.sh
+fi
+
+# 5.5 配置OLED和风扇驱动
+echo "  [5.5] 配置OLED和风扇驱动..."
+# 加载OLED驱动
+if modinfo ssd1306fb &>/dev/null; then
+    modprobe ssd1306fb
+    echo "[完成] OLED驱动已加载"
+else
+    echo "[警告] ssd1306fb驱动不存在，跳过"
+fi
+
+# 检查I2C设备
+if command -v i2cdetect &>/dev/null; then
+    echo "[检查] 检测I2C设备..."
+    i2cdetect -y 1 2>/dev/null | grep -q "3c" && echo "[完成] OLED设备(0x3c)已检测到" || echo "[警告] OLED设备未检测到"
+fi
+
+# 5.6 配置无线网卡（中国大陆标准）
+echo "  [5.6] 配置无线网卡（中国大陆标准）..."
+if [ -f /usr/local/cumbox2/scripts/setup_wifi_cn.sh ]; then
+    /usr/local/cumbox2/scripts/setup_wifi_cn.sh
 fi
 
 echo "[完成] 系统优化完成"
 echo ""
 
-# 8. 启用硬件相关服务
-echo "[步骤 8/8] 启用CumeBox2硬件服务..."
+# 6. 启用硬件相关服务
+echo "[步骤 6/8] 启用CumeBox2硬件服务..."
 systemctl daemon-reload
 
 # 复制检查脚本
@@ -108,21 +114,27 @@ if [ -f /usr/share/ophub/custom/cumbox2/scripts/check_services.sh ]; then
 fi
 
 # 启用OLED显示服务
-if [ -f /lib/systemd/system/cumbox2-oled.service ]; then
+if [ -f /etc/systemd/system/cumbox2-oled.service ]; then
     systemctl enable cumbox2-oled.service
     echo "  ✓ OLED显示服务已启用"
 fi
 
 # 启用风扇控制服务
-if [ -f /lib/systemd/system/cumbox2-fan.service ]; then
+if [ -f /etc/systemd/system/cumbox2-fan.service ]; then
     systemctl enable cumbox2-fan.service
     echo "  ✓ 风扇控制服务已启用"
 fi
 
 # 启用按键服务
-if [ -f /lib/systemd/system/cumbox2-key.service ]; then
+if [ -f /etc/systemd/system/cumbox2-key.service ]; then
     systemctl enable cumbox2-key.service
     echo "  ✓ 按键服务已启用"
+fi
+
+# 启用WiFi配置服务（中国大陆标准）
+if [ -f /etc/systemd/system/cumbox2-wifi-cn.service ]; then
+    systemctl enable cumbox2-wifi-cn.service
+    echo "  ✓ WiFi配置服务已启用（中国大陆标准）"
 fi
 
 # 启用ZRAM服务
@@ -134,15 +146,15 @@ fi
 echo "[完成] 硬件服务启用完成"
 echo ""
 
-# 9. 安装依赖包
-echo "[安装] 安装系统依赖..."
+# 7. 安装依赖包
+echo "[步骤 7/8] 安装系统依赖..."
 apt-get update -qq
 apt-get install -y i2c-tools evtest udisks2 udiskie zram-tools
 echo "[完成] 依赖包安装完成"
 echo ""
 
-# 10. 启动服务并检查状态
-echo "[检查] 启动硬件服务..."
+# 8. 启动服务并检查状态
+echo "[步骤 8/8] 启动硬件服务..."
 
 # 启动OLED服务
 if systemctl is-enabled cumbox2-oled.service 2>/dev/null; then

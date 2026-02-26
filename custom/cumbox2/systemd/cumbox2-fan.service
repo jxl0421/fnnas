@@ -1,7 +1,7 @@
 [Unit]
 Description=CumeBox2 Fan Auto Control
-After=multi-user.target sys-module-gpio-tee.service
-Requires=sys-module-gpio-tee.service
+After=multi-user.target
+# GPIO通过sysfs访问，由内核自动挂载，无需额外依赖
 
 [Service]
 Type=simple

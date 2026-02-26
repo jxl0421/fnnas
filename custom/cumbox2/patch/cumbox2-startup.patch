@@ -1,6 +1,6 @@
 --- a/arch/arm64/boot/dts/amlogic/meson-gxl-s905x-cumebox.dts
 +++ b/arch/arm64/boot/dts/amlogic/meson-gxl-s905x-cumebox.dts
-@@ -20,6 +20,13 @@
+@@ -20,6 +20,9 @@
  	model = "CumeBox2";
  	compatible = "amlogic,s905x-cumebox", "amlogic,s905x", "amlogic,meson-gxl";
  
@@ -11,45 +11,50 @@
  	aliases {
  		serial0 = &uart_AO;
  	};
-@@ -100,7 +107,24 @@
+@@ -100,7 +103,22 @@
  		status = "okay";
  	};
  
-+	// OLED显示配置 - I2C@500总线
-+	i2c@500 {
++	// OLED显示配置 - I2C总线1 (i2c@1c = i2c-1)
++	i2c@1c {
 +		status = "okay";
 +		oled@3c {
-+			compatible = "ssd1306fb,i2c";
++			compatible = "solomon,ssd1306fb-i2c";
 +			reg = <0x3c>;
++			pwms = <&pwm_AO_ab 0 1000000>;
++			reset-gpios = <&gpio GPIOAO_4 GPIO_ACTIVE_LOW>;
 +			status = "okay";
 +		};
 +	};
 +
-+	// 风扇控制
++	// 风扇控制 - GPIOAO_3
 +	gpio-fan {
 +		#cooling-cells = <0x02>;
 +		compatible = "gpio-fan";
-+		gpio = <&gpio AO_3 GPIO_ACTIVE_HIGH>;
-+		cooling-levels = <0 255>;
++		gpios = <&gpio GPIOAO_3 GPIO_ACTIVE_HIGH>;
++		cooling-min-level = <0>;
++		cooling-max-level = <3>;
++		cooling-levels = <0 150 200 255>;
 +		status = "okay";
 +	};
 +
-+	// LED指示灯
  	leds {
  		compatible = "gpio-leds";
  
-@@ -108,7 +132,7 @@
+@@ -108,11 +126,12 @@
  			label = "cumbox2:status";
- 			gpios = <&gpio X_49 GPIO_ACTIVE_HIGH>;
+ 			gpios = <&gpio GPIOX_6 GPIO_ACTIVE_HIGH>;
  			default-state = "on";
 -			linux,default-trigger = "timer";
 +			linux,default-trigger = "heartbeat";
  		};
  
  		disk {
-@@ -116,7 +140,7 @@
- 			gpios = <&gpio X_4B GPIO_ACTIVE_HIGH>;
+ 			label = "cumbox2:disk";
+-			gpios = <&gpio X_4B GPIO_ACTIVE_HIGH>;
++			gpios = <&gpio GPIOX_17 GPIO_ACTIVE_HIGH>;
  			default-state = "off";
- 			linux,default-trigger = "disk-activity";
+-			linux,default-trigger = "disk-activity";
++			linux,default-trigger = "mmc0";
  		};
  	};

@@ -1,7 +1,7 @@
 [Unit]
 Description=CumeBox2 OLED System Info Display
-After=network-online.target multi-user.target
-Wants=network-online.target
+After=multi-user.target
+Wants=multi-user.target
 
 [Service]
 Type=simple

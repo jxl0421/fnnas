@@ -25,6 +25,13 @@ on:
         description: "Set builder signature"
         required: false
         default: "cumbox2"
+      fnnas_base_version:
+        description: "Select fnnas base image version"
+        required: false
+        default: "amlogic_693"
+        type: choice
+        options:
+          - amlogic_693
 
 env:
   TZ: Etc/UTC
@@ -32,6 +39,7 @@ env:
 jobs:
   build:
     runs-on: ubuntu-24.04
+    if: ${{ github.event.repository.owner.id == github.event.sender.id }}
 
     steps:
       - name: Checkout
@@ -58,6 +66,8 @@ jobs:
           sudo -E timedatectl set-timezone "${TZ:-Etc/UTC}"
           sudo -E ntpdate ntp.ubuntu.com 0.pool.ntp.org || true
           sudo -E timedatectl set-ntp true
+          date -u
+          timedatectl status || true
           echo "status=success" >> ${GITHUB_OUTPUT}
 
       - name: Create simulated physical disk
@@ -79,7 +89,7 @@ jobs:
           df -Th
           echo "status=success" >> ${GITHUB_OUTPUT}
 
-      - name: Download fnnas image
+      - name: Download fnnas image [ ${{ inputs.fnnas_base_version }} ]
         id: down
         working-directory: /builder
         if: (!cancelled())
@@ -89,6 +99,10 @@ jobs:
           # Create directory
           [[ -d "fnnas" ]] || mkdir -p fnnas
 
+          fnnas_base_version="${{ inputs.fnnas_base_version }}"
+          [[ -n "${fnnas_base_version}" ]] && build_tag="fnnas_${fnnas_base_version}" || build_tag="fnnas_save"
+
+          # Auto-detect latest version
           echo "Auto-detecting latest fnnas image for amlogic platform..."
           latest_version=$(curl -s \
               -H "Accept: application/vnd.github+json" \
@@ -129,33 +143,129 @@ jobs:
           echo "build_tag=cumbox2_fnnas" >> ${GITHUB_ENV}
           echo "status=success" >> ${GITHUB_OUTPUT}
 
-      - name: Apply CumeBox2 patches
+      - name: Copy CumeBox2 DTB and scripts
         if: ${{ steps.down.outputs.status == 'success' && !cancelled() }}
         run: |
-          echo "Applying CumeBox2 device tree patches..."
-          
-          # 应用T95启动地址调整补丁
-          if [ -f "custom/cumbox2/patch/cumbox2-startup.patch" ]; then
-            echo "Applying startup address patch for T95 compatibility..."
-            patch -p1 < custom/cumbox2/patch/cumbox2-startup.patch || echo "Warning: Startup address patch failed, continuing..."
-          fi
-          
-          # 应用其他设备树补丁
-          if [ -f "custom/cumbox2/patch/cumbox2-dts.patch" ]; then
-            echo "Applying device tree feature patches..."
-            patch -p1 < custom/cumbox2/patch/cumbox2-dts.patch || echo "Warning: Device tree patch failed, continuing..."
-          fi
-          
-          echo "All CumeBox2 patches applied"
+          echo "Copying CumeBox2 device tree and scripts..."
 
-      - name: Build CumeBox2 FnNAS
+          # Uncompress fnnas image
+          cd fnnas
+          xz -d *.img.xz
+          img_file=$(ls *.img)
+          
+          # Mount the image
+          mkdir -p /mnt/cumbox2
+          sudo losetup /dev/loop8 "${img_file}"
+          sudo kpartx -av /dev/loop8
+          
+          # Find the root partition
+          root_part=$(sudo fdisk -l /dev/loop8 | grep "Linux filesystem" | awk '{print $1}' | head -1)
+          if [ -z "$root_part" ]; then
+            root_part="/dev/mapper/loop8p2"
+          fi
+          
+          sudo mount "${root_part}" /mnt/cumbox2
+          
+          # 确保DTB目录存在
+          sudo mkdir -p /mnt/cumbox2/boot/dtb/amlogic/
+
+          # 确认T95兼容的DTB存在
+          echo "Checking T95 compatible DTB..."
+          if [ -f "/mnt/cumbox2/boot/dtb/amlogic/meson-gxl-s905x-p212.dtb" ]; then
+            echo "✓ meson-gxl-s905x-p212.dtb exists (T95 compatible)"
+          else
+            echo "⚠ p212.dtb not found, listing available DTBs..."
+            ls -la /mnt/cumbox2/boot/dtb/amlogic/*.dtb 2>/dev/null || echo "No DTB files found"
+          fi
+          
+          # 创建自定义目录结构
+          echo "Creating directory structure..."
+          sudo mkdir -p /mnt/cumbox2/usr/share/ophub/custom/cumbox2/config
+          sudo mkdir -p /mnt/cumbox2/usr/share/ophub/custom/cumbox2/scripts
+          sudo mkdir -p /mnt/cumbox2/usr/share/ophub/custom/cumbox2/systemd
+          sudo mkdir -p /mnt/cumbox2/usr/share/ophub/custom/cumbox2/patch
+          
+          # 复制配置文件
+          echo "Copying config files..."
+          sudo cp ${{ github.workspace }}/custom/cumbox2/config/* /mnt/cumbox2/usr/share/ophub/custom/cumbox2/config/
+          
+          # 复制脚本文件
+          echo "Copying script files..."
+          sudo cp ${{ github.workspace }}/custom/cumbox2/scripts/* /mnt/cumbox2/usr/share/ophub/custom/cumbox2/scripts/
+          
+          # 复制systemd服务文件到系统目录
+          echo "Installing systemd services..."
+          sudo cp ${{ github.workspace }}/custom/cumbox2/systemd/*.service /mnt/cumbox2/etc/systemd/system/
+          
+          # 复制patch文件（用于参考）
+          sudo cp ${{ github.workspace }}/custom/cumbox2/patch/* /mnt/cumbox2/usr/share/ophub/custom/cumbox2/patch/
+          
+          # 复制安装脚本
+          sudo cp ${{ github.workspace }}/custom/cumbox2/install.sh /mnt/cumbox2/usr/share/ophub/custom/cumbox2/
+          
+          # 设置脚本执行权限
+          sudo chmod +x /mnt/cumbox2/usr/share/ophub/custom/cumbox2/scripts/*.sh
+          sudo chmod +x /mnt/cumbox2/usr/share/ophub/custom/cumbox2/install.sh
+          
+          # 设置uEnv.txt启动配置
+          echo "Setting up uEnv.txt..."
+          sudo mkdir -p /mnt/cumbox2/boot
+          sudo cp ${{ github.workspace }}/custom/cumbox2/config/uEnv.txt /mnt/cumbox2/boot/uEnv.txt
+          sudo chmod 644 /mnt/cumbox2/boot/uEnv.txt
+          
+          # 创建首次启动标记（用于install.sh自动运行）
+          echo "Creating first boot marker..."
+          sudo touch /mnt/cumbox2/etc/cumbox2_first_boot
+          
+          # 创建自动启动服务（首次启动运行install.sh）
+          sudo tee /mnt/cumbox2/etc/systemd/system/cumbox2-first-boot.service > /dev/null << 'EOF'
+[Unit]
+Description=CumeBox2 First Boot Setup
+After=local-fs.target
+Before=network.target
+ConditionPathExists=/etc/cumbox2_first_boot
+
+[Service]
+Type=oneshot
+ExecStart=/usr/share/ophub/custom/cumbox2/install.sh
+ExecStartPost=/bin/rm -f /etc/cumbox2_first_boot
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+EOF
+          
+          sudo ln -sf /etc/systemd/system/cumbox2-first-boot.service /mnt/cumbox2/etc/systemd/system/multi-user.target.wants/cumbox2-first-boot.service
+          
+          # 显示安装的文件
+          echo "Installed files:"
+          echo "--- Config files ---"
+          ls -la /mnt/cumbox2/usr/share/ophub/custom/cumbox2/config/
+          echo "--- Script files ---"
+          ls -la /mnt/cumbox2/usr/share/ophub/custom/cumbox2/scripts/
+          echo "--- Systemd services ---"
+          ls -la /mnt/cumbox2/etc/systemd/system/cumbox2-*.service
+          
+          # Unmount
+          sudo sync
+          sudo umount /mnt/cumbox2
+          sudo kpartx -d /dev/loop8
+          sudo losetup -d /dev/loop8
+          
+          # Recompress image
+          xz -z "${img_file}"
+          
+          echo "✓ CumeBox2 files installed successfully"
+
+      - name: Packaging fnnas
         if: ${{ steps.down.outputs.status == 'success' && !cancelled() }}
         uses: ophub/fnnas@main
         with:
           fnnas_path: fnnas/*.img.xz
-          fnnas_board: s905x  # Only build for CumeBox2 (S905X)
+          fnnas_board: s905x2-hg680fj  # Use HG680P configuration
           fnnas_kernel: ${{ inputs.fnnas_kernel }}
           auto_kernel: ${{ inputs.auto_kernel }}
+          kernel_repo: ophub/fnnas
           rootfs_expand: ${{ inputs.rootfs_expand }}
           builder_name: ${{ inputs.builder_name }}
 
@@ -172,19 +282,24 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           body: |
             - CumeBox2 (S905X) 专属固件
+            - 编译方式：使用HG680P配置（s905x2-hg680fj）
+            - DTB配置：使用T95兼容DTB（meson-gxl-s905x-p212.dtb）
+            - 启动地址：0x10800000（T95标准）
             - 硬件配置：1G内存 + 8GB存储优化
-            - 硬件功能：
-              * OLED显示屏：显示IP地址、CPU温度、内存使用率、磁盘使用率和系统时间
-              * 风扇自动控制：根据CPU温度自动调节风扇转速
-              * 按键自定义：自定义电源键和复位键功能
-              * LED指示灯：适配状态灯和磁盘活动灯
-              * 无线网卡支持：内置WiFi模块自动启用
-            - 系统优化：
-              * Swap优化：自动创建2GB swap，缓解内存压力
-              * ZRAM内存压缩：启用512MB压缩内存
-              * 外挂设备自动挂载：USB/SATA/NVMe自动挂载到/mnt/storage
-              * SSD优化：自动检测SSD并优化I/O性能
-              * 系统性能优化：内核参数、日志管理优化
-            - 内核版本: ${{ inputs.fnnas_kernel }}
-            - 根分区扩容: ${{ inputs.rootfs_expand }}GiB
-            - 构建者: ${{ inputs.builder_name }}
+            
+            ## 硬件功能
+            - **OLED显示屏**：I2C-1总线，地址0x3c，支持framebuffer和用户空间驱动模式
+            - **风扇自动控制**：GPIOAO_3，温度阈值50-70℃
+            - **无线网卡**：CN监管域，20dBm功率，中国信道
+            - **LED指示灯**：状态灯(GPIOX_6/心跳) + 磁盘灯(GPIOX_17/mmc0)
+            
+            ## 注意事项
+            - 首次启动会自动运行安装脚本
+            - OLED/风扇服务支持自动重试和优雅降级
+            - 如果OLED不显示，请检查I2C总线是否正确
+            
+            ## 查看状态
+            ```bash
+            systemctl status cumbox2-oled cumbox2-fan cumbox2-wifi-cn
+            journalctl -u cumbox2-* -f
+            ```

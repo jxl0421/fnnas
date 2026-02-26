@@ -1,0 +1,16 @@
+[Unit]
+Description=CumeBox2 WiFi CN Configuration
+After=multi-user.target
+# WiFi配置在系统启动后运行，确保无线网卡已识别
+
+[Service]
+Type=oneshot
+User=root
+ExecStart=/usr/local/cumbox2/scripts/setup_wifi_cn.sh
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=cumbox2-wifi-cn
+# oneshot服务不自动重启
+
+[Install]
+WantedBy=multi-user.target
