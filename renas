@@ -782,7 +782,7 @@ make_image() {
 
     # Set partition names
     if [[ "${partition_table_type}" == "msdos" ]]; then
-        dd if=/dev/urandom of="${loop_new}" bs=1 count=4 seek=440 conv=notrunc status=none
+        echo "label-id: 0x${FAT_ID_RAW}" | sfdisk "${loop_new}" >/dev/null 2>&1
     elif [[ "${partition_table_type}" == "gpt" ]]; then
         parted -s "${build_image_file}" name 1 BOOT 2>/dev/null
         parted -s "${build_image_file}" name 2 ROOTFS 2>/dev/null
@@ -947,8 +947,19 @@ refactor_bootfs() {
         sed -i "s|^overlay_prefix=.*|overlay_prefix=${FAMILY}|g" ${armbianenv_conf_file}
     }
 
+    # Edit the fnEnv.txt
+    fnenv_conf_file="fnEnv.txt"
+    [[ -f "${fnenv_conf_file}" ]] && {
+        sed -i "s|\(fdtfile=.*\/\)[^/]*$|\1${FDTFILE}|g" ${fnenv_conf_file}
+        sed -i "s|^kernelfile=.*|kernelfile=vmlinuz-${kernel_name}|g" ${fnenv_conf_file}
+        [[ "${PLATFORM}" =~ ^(allwinner|amlogic)$ ]] && {
+            sed -i "s|^instdisk_bootuuid=.*|instdisk_bootuuid=${FAT_ID_RAW}-01|g" ${fnenv_conf_file}
+            sed -i "s|^instdisk_rootuuid=.*|instdisk_rootuuid=${FAT_ID_RAW}-02|g" ${fnenv_conf_file}
+        }
+    }
+
     # Check device configuration files
-    [[ -f "${uenv_conf_file}" || -f "${rename_extlinux_file}" || -f "${armbianenv_conf_file}" ]] || error_msg "Missing [ /boot/*Env.txt ]"
+    [[ -f "${uenv_conf_file}" || -f "${rename_extlinux_file}" || -f "${armbianenv_conf_file}" || -f "${fnenv_conf_file}" ]] || error_msg "Missing [ /boot/*Env.txt ]"
 }
 
 refactor_rootfs() {
