@@ -1,71 +1,69 @@
 #!/bin/bash
 # ZRAM内存压缩配置 - 缓解1G内存压力
+# 由zram.service调用
 
-source /etc/cumbox2/optimization.conf
+source /etc/cumbox2/optimization.conf 2>/dev/null
 
-if [ "${ZRAM_ENABLED}" != "true" ]; then
-    echo "[ZRAM优化] ZRAM未启用，跳过配置"
+# 默认配置
+ZRAM_SIZE="${ZRAM_SIZE:-512}"
+ZRAM_COMP_ALG="${ZRAM_COMP_ALG:-lz4}"
+
+echo "[ZRAM] 开始配置内存压缩..."
+
+# 检查zram模块
+if ! lsmod | grep -q zram; then
+    echo "[ZRAM] 加载zram模块..."
+    modprobe zram num_devices=1 || {
+        echo "[ZRAM] 无法加载zram模块"
+        exit 1
+    }
+fi
+
+# 检查zram设备是否已配置
+if [ -e /dev/zram0 ] && swapon --show | grep -q zram0; then
+    echo "[ZRAM] ZRAM已启用，跳过配置"
+    zramctl
     exit 0
 fi
 
-echo "[ZRAM优化] 开始配置内存压缩..."
+# 配置zram设备
+echo "[ZRAM] 创建${ZRAM_SIZE}MB ZRAM设备..."
 
-# 安装zram工具
-if ! command -v zramctl &> /dev/null; then
-    echo "[ZRAM优化] 安装zram-tools..."
-    apt-get update -qq
-    apt-get install -y zram-tools
+# 设置压缩算法
+if [ -f /sys/block/zram0/comp_algorithm ]; then
+    echo ${ZRAM_COMP_ALG} > /sys/block/zram0/comp_algorithm 2>/dev/null || \
+    echo lz4 > /sys/block/zram0/comp_algorithm 2>/dev/null
+    echo "[ZRAM] 压缩算法: $(cat /sys/block/zram0/comp_algorithm)"
 fi
 
-# 配置zram
-echo "[ZRAM优化] 创建${ZRAM_SIZE}MB ZRAM设备..."
+# 设置磁盘大小
+echo "${ZRAM_SIZE}M" > /sys/block/zram0/disksize 2>/dev/null || {
+    echo "[ZRAM] 无法设置磁盘大小"
+    exit 1
+}
 
-# 创建zram配置文件
+# 创建swap
+mkswap /dev/zram0 2>/dev/null || {
+    echo "[ZRAM] 无法创建swap"
+    exit 1
+}
+
+# 启用swap
+swapon /dev/zram0 --priority 100 2>/dev/null || {
+    echo "[ZRAM] 无法启用swap"
+    exit 1
+}
+
+# 创建配置文件以便后续使用
+mkdir -p /etc/modprobe.d
 cat > /etc/modprobe.d/zram.conf << 'EOF'
 options zram num_devices=1
 EOF
 
-# 创建zram脚本
-cat > /usr/local/bin/zram-setup.sh << 'EOZRAM'
-#!/bin/bash
-# ZRAM自动配置脚本
-
-if [ ! -e /dev/zram0 ]; then
-    modprobe zram
-    echo lz4 > /sys/block/zram0/comp_algorithm
-    echo 512M > /sys/block/zram0/disksize
-    mkswap /dev/zram0
-    swapon /dev/zram0 --priority 100
-    echo "[ZRAM] 已启用512MB压缩swap"
-fi
-EOZRAM
-
-chmod +x /usr/local/bin/zram-setup.sh
-
-# 创建systemd服务
-cat > /etc/systemd/system/zram.service << 'EOF'
-[Unit]
-Description=ZRAM Memory Compression
-After=multi-user.target
-
-[Service]
-Type=oneshot
-ExecStart=/usr/local/bin/zram-setup.sh
-RemainAfterExit=yes
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-# 启用zram服务
-systemctl daemon-reload
-systemctl enable zram.service
-systemctl start zram.service
-
 # 显示状态
-echo "[ZRAM优化] ZRAM配置完成！"
+echo "[ZRAM] ZRAM配置完成！"
 zramctl
 free -h
 
-echo "[ZRAM优化] 压缩算法: ${ZRAM_COMP_ALG}"
-echo "[ZRAM优化] 压缩大小: ${ZRAM_SIZE}MB"
+echo "[ZRAM] 当前swap状态："
+swapon --show

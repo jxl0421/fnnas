@@ -26,11 +26,12 @@ echo ""
         cp /usr/share/ophub/custom/cumbox2/config/optimization.conf /etc/cumbox2/
     fi
 
-    # 安装启动配置文件
-    if [ -f /usr/share/ophub/custom/cumbox2/config/uEnv.txt ]; then
-        echo "  [2.1] 安装启动配置文件..."
-        cp /usr/share/ophub/custom/cumbox2/config/uEnv.txt /boot/uEnv.txt
-        chmod 644 /boot/uEnv.txt
+    # 安装启动配置文件（extlinux.conf - T95标准）
+    if [ -f /usr/share/ophub/custom/cumbox2/config/extlinux.conf ]; then
+        echo "  [2.1] 安装启动配置文件（extlinux.conf）..."
+        mkdir -p /boot/extlinux
+        cp /usr/share/ophub/custom/cumbox2/config/extlinux.conf /boot/extlinux/extlinux.conf.bak
+        chmod 644 /boot/extlinux/extlinux.conf.bak
         echo "[完成] 启动配置文件安装完成"
     else
         echo "[警告] 启动配置文件不存在，跳过..."
@@ -131,6 +132,12 @@ if [ -f /etc/systemd/system/cumbox2-key.service ]; then
     echo "  ✓ 按键服务已启用"
 fi
 
+# 启用LED控制服务
+if [ -f /etc/systemd/system/cumbox2-led.service ]; then
+    systemctl enable cumbox2-led.service
+    echo "  ✓ LED控制服务已启用"
+fi
+
 # 启用WiFi配置服务（中国大陆标准）
 if [ -f /etc/systemd/system/cumbox2-wifi-cn.service ]; then
     systemctl enable cumbox2-wifi-cn.service
@@ -192,6 +199,18 @@ if systemctl is-enabled cumbox2-key.service 2>/dev/null; then
     fi
 fi
 
+# 启动LED控制服务
+if systemctl is-enabled cumbox2-led.service 2>/dev/null; then
+    echo "  启动LED控制服务..."
+    systemctl start cumbox2-led.service
+    sleep 1
+    if systemctl is-active cumbox2-led.service >/dev/null 2>&1; then
+        echo "  ✓ LED控制服务运行正常"
+    else
+        echo "  ✗ LED控制服务启动失败，将在后台自动重试"
+    fi
+fi
+
 echo ""
 
 # 9. 显示系统信息
@@ -208,6 +227,7 @@ echo ""
 echo "服务状态："
 systemctl is-active cumbox2-oled.service 2>/dev/null && echo "  ✓ OLED显示服务" || echo "  ○ OLED显示服务（重试中）"
 systemctl is-active cumbox2-fan.service 2>/dev/null && echo "  ✓ 风扇控制服务" || echo "  ○ 风扇控制服务（重试中）"
+systemctl is-active cumbox2-led.service 2>/dev/null && echo "  ✓ LED控制服务" || echo "  ○ LED控制服务（重试中）"
 systemctl is-active cumbox2-key.service 2>/dev/null && echo "  ✓ 按键服务" || echo "  ○ 按键服务（重试中）"
 systemctl is-active zram.service 2>/dev/null && echo "  ✓ ZRAM内存压缩" || echo "  ○ ZRAM内存压缩"
 echo ""
@@ -218,6 +238,7 @@ echo "  ✓ 外挂设备自动挂载（/media/，标准udisks2）"
 echo "  ✓ 系统性能优化"
 echo "  ✓ OLED显示"
 echo "  ✓ 风扇自动控制"
+echo "  ✓ LED指示灯"
 echo "  ✓ 按键自定义"
 echo ""
 echo "======================================"

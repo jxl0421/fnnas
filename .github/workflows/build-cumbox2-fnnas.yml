@@ -207,11 +207,11 @@ jobs:
           sudo chmod +x /mnt/cumbox2/usr/share/ophub/custom/cumbox2/scripts/*.sh
           sudo chmod +x /mnt/cumbox2/usr/share/ophub/custom/cumbox2/install.sh
           
-          # 设置uEnv.txt启动配置
-          echo "Setting up uEnv.txt..."
-          sudo mkdir -p /mnt/cumbox2/boot
-          sudo cp ${{ github.workspace }}/custom/cumbox2/config/uEnv.txt /mnt/cumbox2/boot/uEnv.txt
-          sudo chmod 644 /mnt/cumbox2/boot/uEnv.txt
+          # 设置extlinux.conf启动配置（T95标准）
+          echo "Setting up extlinux.conf..."
+          sudo mkdir -p /mnt/cumbox2/boot/extlinux
+          sudo cp ${{ github.workspace }}/custom/cumbox2/config/extlinux.conf /mnt/cumbox2/boot/extlinux/extlinux.conf.bak
+          sudo chmod 644 /mnt/cumbox2/boot/extlinux/extlinux.conf.bak
           
           # 创建首次启动标记（用于install.sh自动运行）
           echo "Creating first boot marker..."
@@ -246,7 +246,7 @@ jobs:
         uses: ophub/fnnas@main
         with:
           fnnas_path: fnnas/*.img.xz
-          fnnas_board: s905x2-hg680fj  # Use HG680P configuration
+          fnnas_board: s905x-t95  # T95标准配置，使用extlinux.conf启动格式
           fnnas_kernel: ${{ inputs.fnnas_kernel }}
           auto_kernel: ${{ inputs.auto_kernel }}
           kernel_repo: ophub/fnnas
@@ -266,9 +266,10 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           body: |
             - CumeBox2 (S905X) 专属固件
-            - 编译方式：使用HG680P配置（s905x2-hg680fj）
-            - DTB配置：使用T95兼容DTB（meson-gxl-s905x-p212.dtb）
-            - 启动地址：0x10800000（T95标准）
+            - 编译方式：使用T95标准配置（s905x-t95）
+            - DTB配置：meson-gxl-s905x-p212.dtb（T95兼容）
+            - 启动配置：extlinux.conf（T95标准）
+            - U-Boot：u-boot-s905x-s912.bin
             - 硬件配置：1G内存 + 8GB存储优化
             
             ## 硬件功能

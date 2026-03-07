@@ -1,186 +1,188 @@
 #!/bin/bash
-source /etc/cumbox2/hardware.conf
+# CumeBox2 风扇自动控制脚本
+# 支持：PWM模式(hwmon) 和 GPIO模式(sysfs)
+source /etc/cumbox2/hardware.conf 2>/dev/null
 
-# Amlogic S905X GPIO编号计算
-# GPIOAO: 基地址 0, GPIOAO_0-9
-# GPIOX: 基地址 18, GPIOX_0-19
+# 默认配置
+[ -z "$FAN_TEMP_LOW" ] && FAN_TEMP_LOW=50
+[ -z "$FAN_TEMP_HIGH" ] && FAN_TEMP_HIGH=70
 
-# 获取GPIO编号的函数
-get_gpio_num() {
-    local gpio_name="$1"
-    local gpio_num=""
+# 控制模式：auto/pwm/gpio
+CONTROL_MODE="auto"
+PWM_PATH=""
+GPIO_NUM=""
 
-    case "$gpio_name" in
-        GPIOAO_*)
-            gpio_num=${gpio_name#GPIOAO_}
-            ;;
-        GPIOX_*)
-            gpio_num=$((18 + ${gpio_name#GPIOX_}))
-            ;;
-        AO_*)
-            gpio_num=${gpio_name#AO_}
-            ;;
-        X_*)
-            gpio_num=$((16#${gpio_name#X_}))
-            ;;
-        *)
-            gpio_num=$(echo "$gpio_name" | grep -oE '[0-9]+')
-            ;;
-    esac
-
-    echo "$gpio_num"
+# 检测PWM设备（hwmon方式）
+detect_pwm_device() {
+    # 检查hwmon下的pwm设备
+    for hwmon in /sys/class/hwmon/hwmon*; do
+        if [ -d "$hwmon" ]; then
+            if [ -f "$hwmon/pwm1" ] && [ -f "$hwmon/pwm1_enable" ]; then
+                PWM_PATH="$hwmon"
+                echo "[风扇] 检测到PWM设备: $PWM_PATH"
+                return 0
+            fi
+        fi
+    done
+    
+    # 检查特定路径（某些设备）
+    if [ -f "/sys/class/hwmon/hwmon0/pwm1" ]; then
+        PWM_PATH="/sys/class/hwmon/hwmon0"
+        echo "[风扇] 使用默认PWM路径: $PWM_PATH"
+        return 0
+    fi
+    
+    return 1
 }
 
-# 初始化GPIO - 使用sysfs方式
+# 获取GPIO编号
+get_gpio_num() {
+    local gpio_name="$1"
+    case "$gpio_name" in
+        GPIOAO_*) echo "${gpio_name#GPIOAO_}" ;;
+        GPIOX_*) echo $((18 + ${gpio_name#GPIOX_})) ;;
+        AO_*) echo "${gpio_name#AO_}" ;;
+        X_*) echo "$((16#${gpio_name#X_}))" ;;
+        *) echo "$gpio_name" | grep -oE '[0-9]+' ;;
+    esac
+}
+
+# 初始化GPIO
 init_gpio() {
     local gpio_num=$1
     local gpio_path="/sys/class/gpio/gpio${gpio_num}"
-
-    echo "[风扇] 初始化GPIO ${gpio_num}..."
-
-    # 检查GPIO是否已导出
+    
     if [ -d "${gpio_path}" ]; then
         echo "[风扇] GPIO ${gpio_num} 已导出"
     else
-        # 导出GPIO
         echo "${gpio_num}" > /sys/class/gpio/export 2>/dev/null
-        if [ $? -eq 0 ]; then
-            echo "[风扇] GPIO ${gpio_num} 导出成功"
-            sleep 0.5
-        else
-            echo "[风扇] GPIO ${gpio_num} 导出失败，可能需要root权限"
-            return 1
-        fi
+        sleep 0.5
     fi
-
-    # 设置为输出模式
+    
     if [ -f "${gpio_path}/direction" ]; then
         echo "out" > "${gpio_path}/direction" 2>/dev/null
-        echo "[风扇] GPIO ${gpio_num} 设置为输出模式"
     fi
-
-    # 初始关闭风扇
+    
     if [ -f "${gpio_path}/value" ]; then
         echo "0" > "${gpio_path}/value" 2>/dev/null
-        echo "[风扇] 风扇初始关闭"
     fi
+    
+    [ -d "${gpio_path}" ]
+}
 
-    return 0
+# 设置PWM风扇
+set_pwm_fan() {
+    local speed=$1  # 0-255
+    if [ -n "$PWM_PATH" ] && [ -f "$PWM_PATH/pwm1" ]; then
+        echo 1 > "$PWM_PATH/pwm1_enable" 2>/dev/null
+        echo "$speed" > "$PWM_PATH/pwm1" 2>/dev/null
+    fi
+}
+
+# 设置GPIO风扇
+set_gpio_fan() {
+    local state=$1  # 0或1
+    local gpio_path="/sys/class/gpio/gpio${GPIO_NUM}/value"
+    if [ -f "$gpio_path" ]; then
+        echo "$state" > "$gpio_path" 2>/dev/null
+    fi
 }
 
 # 获取CPU温度
 get_cpu_temp() {
-    local temp_file="/sys/class/thermal/thermal_zone0/temp"
-
-    if [ -f "$temp_file" ]; then
-        local temp_raw=$(cat "$temp_file" 2>/dev/null)
-        if [ -n "$temp_raw" ] && [ "$temp_raw" -gt 0 ] 2>/dev/null; then
-            echo $((temp_raw / 1000))
-            return
-        fi
+    local temp=0
+    
+    # 标准路径
+    if [ -f "/sys/class/thermal/thermal_zone0/temp" ]; then
+        temp=$(cat /sys/class/thermal/thermal_zone0/temp 2>/dev/null)
     fi
-
-    # 尝试其他温度文件
-    for i in /sys/class/thermal/thermal_zone*/temp; do
-        if [ -f "$i" ]; then
-            local temp_raw=$(cat "$i" 2>/dev/null)
-            if [ -n "$temp_raw" ] && [ "$temp_raw" -gt 0 ] 2>/dev/null; then
-                echo $((temp_raw / 1000))
-                return
-            fi
-        fi
-    done
-
-    echo "0"
-}
-
-# 设置风扇状态
-set_fan_state() {
-    local state=$1
-    local gpio_path="/sys/class/gpio/gpio${FAN_GPIO_NUM}/value"
-
-    if [ -f "${gpio_path}" ]; then
-        echo "${state}" > "${gpio_path}" 2>/dev/null
-        if [ $? -eq 0 ]; then
-            local fan_status=$([ "$state" -eq 1 ] && echo "开启" || echo "关闭")
-            echo "[风扇] 风扇${fan_status}"
-        else
-            echo "[风扇] 设置风扇状态失败"
-        fi
-    else
-        echo "[风扇] GPIO设备不存在，跳过控制"
+    
+    # 备选路径
+    if [ -z "$temp" ] || [ "$temp" = "0" ]; then
+        temp=$(cat /sys/devices/virtual/thermal/thermal_zone0/temp 2>/dev/null)
     fi
+    
+    # 返回摄氏度
+    echo $((temp / 1000))
 }
 
 # 主函数
 main() {
     echo "[风扇] 风扇自动控制服务启动..."
-    echo "[风扇] 配置: GPIO=${FAN_GPIO}, 低温阈值=${FAN_TEMP_LOW}C, 高温阈值=${FAN_TEMP_HIGH}C"
-
-    # 获取GPIO编号
-    FAN_GPIO_NUM=$(get_gpio_num "${FAN_GPIO}")
-
-    if [ -z "${FAN_GPIO_NUM}" ]; then
-        echo "[风扇] 错误：无法解析GPIO编号 ${FAN_GPIO}"
-        echo "[风扇] 将以监控模式运行（不控制风扇）"
-        FAN_GPIO_NUM=""
-    fi
-
-    # 初始化GPIO
-    if [ -n "${FAN_GPIO_NUM}" ]; then
-        for i in {1..3}; do
-            if init_gpio "${FAN_GPIO_NUM}"; then
-                break
+    echo "[风扇] 配置: 低温阈值=${FAN_TEMP_LOW}C, 高温阈值=${FAN_TEMP_HIGH}C"
+    
+    # 自动检测控制模式
+    if [ "$CONTROL_MODE" = "auto" ]; then
+        if detect_pwm_device; then
+            CONTROL_MODE="pwm"
+            echo "[风扇] 使用PWM控制模式"
+        elif [ -n "$FAN_GPIO" ]; then
+            GPIO_NUM=$(get_gpio_num "$FAN_GPIO")
+            if [ -n "$GPIO_NUM" ] && init_gpio "$GPIO_NUM"; then
+                CONTROL_MODE="gpio"
+                echo "[风扇] 使用GPIO控制模式 (GPIO $GPIO_NUM)"
             else
-                echo "[风扇] GPIO初始化失败，第${i}次重试..."
-                sleep 2
+                echo "[风扇] GPIO初始化失败，仅监控温度"
+                CONTROL_MODE="monitor"
             fi
-        done
+        else
+            echo "[风扇] 未找到控制设备，仅监控温度"
+            CONTROL_MODE="monitor"
+        fi
     fi
-
-    # 等待系统稳定
-    echo "[风扇] 等待系统稳定..."
-    sleep 5
-
-    echo "[风扇] 开始温度监控..."
-
+    
+    echo "[风扇] 控制模式: $CONTROL_MODE"
+    sleep 2
+    
     # 主循环
-    local last_fan_state=-1
-
+    local last_state=-1
+    
     while true; do
-        # 获取CPU温度
-        CPU_TEMP=$(get_cpu_temp)
+        TEMP=$(get_cpu_temp)
         
-        if [ "$CPU_TEMP" -eq 0 ]; then
-            echo "[风扇] 无法读取温度，等待..."
+        if [ "$TEMP" -eq 0 ]; then
+            echo "[风扇] 无法读取温度"
             sleep 5
             continue
         fi
-
-        echo "[风扇] 当前温度: ${CPU_TEMP}C"
-
-        # 如果GPIO不可用，只监控温度
-        if [ -z "${FAN_GPIO_NUM}" ] || [ ! -f "/sys/class/gpio/gpio${FAN_GPIO_NUM}/value" ]; then
-            sleep 5
-            continue
+        
+        # 计算风扇状态
+        local new_state=0
+        if [ "$TEMP" -ge "$FAN_TEMP_HIGH" ]; then
+            new_state=1
+        elif [ "$TEMP" -lt "$FAN_TEMP_LOW" ]; then
+            new_state=0
+        else
+            new_state=$last_state  # 保持当前状态（滞后）
         fi
-
-        # 判断风扇状态
-        if [ ${CPU_TEMP} -lt ${FAN_TEMP_LOW} ]; then
-            # 温度低于低温阈值，关闭风扇
-            if [ ${last_fan_state} -ne 0 ]; then
-                set_fan_state 0
-                last_fan_state=0
-            fi
-        elif [ ${CPU_TEMP} -ge ${FAN_TEMP_HIGH} ]; then
-            # 温度高于高温阈值，开启风扇
-            if [ ${last_fan_state} -ne 1 ]; then
-                set_fan_state 1
-                last_fan_state=1
-            fi
+        
+        # 状态变化时执行控制
+        if [ "$new_state" -ne "$last_state" ]; then
+            echo "[风扇] 温度: ${TEMP}C, 状态变化: $last_state -> $new_state"
+            
+            case "$CONTROL_MODE" in
+                pwm)
+                    if [ "$new_state" -eq 1 ]; then
+                        set_pwm_fan 180  # 70%转速
+                        echo "[风扇] PWM风扇开启 (70%)"
+                    else
+                        set_pwm_fan 0
+                        echo "[风扇] PWM风扇关闭"
+                    fi
+                    ;;
+                gpio)
+                    set_gpio_fan "$new_state"
+                    echo "[风扇] GPIO风扇$([ "$new_state" -eq 1 ] && echo '开启' || echo '关闭')"
+                    ;;
+                monitor)
+                    echo "[风扇] 监控模式: 温度 ${TEMP}C"
+                    ;;
+            esac
+            
+            last_state=$new_state
         fi
-
-        sleep 5
+        
+        sleep 3
     done
 }
 

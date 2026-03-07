@@ -1,0 +1,16 @@
+[Unit]
+Description=CumeBox2 LED Control Service
+After=multi-user.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/local/cumbox2/scripts/led_control.sh
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=cumbox2-led
+
+[Install]
+WantedBy=multi-user.target
